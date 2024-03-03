@@ -54,7 +54,7 @@ def image_upload():
     # error_types_list = ["errors1", "errors2"]
     error_types = ",".join(error_types_list)
 
-    # # 将图片信息存入数据库
+    # 将图片信息存入数据库
     new_file_info = FileInfo(
         filename=filename_new,
         upload_time=timestamp,
@@ -65,7 +65,7 @@ def image_upload():
     db.session.add(new_file_info)
     db.session.commit()
 
-    return {"code": 200, "data": error_types_list}
+    return {"code": 200, "data": new_file_info.id}
 
 
 @app.route("/image/list", methods=["GET"])
