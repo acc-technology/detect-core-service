@@ -70,7 +70,7 @@ def image_upload():
 
 @app.route("/image/list", methods=["GET"])
 def list_images():
-    images = FileInfo.query.all()
+    images = FileInfo.query.order_by(FileInfo.id.desc()).all()
     image_list = []
     for image in images:
         image_info = {
