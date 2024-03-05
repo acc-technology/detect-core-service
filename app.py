@@ -7,8 +7,8 @@ import time
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = (
-    # "sqlite:////Users/regmsif/Documents/test/server/src/database.db"
-    "sqlite:////home/lcj/lab/else/detect-core-service/database.db"
+    "sqlite:////root/server/src/database.db"
+    # "sqlite:////home/lcj/lab/else/detect-core-service/database.db"
 )
 db = SQLAlchemy(app)
 
@@ -47,13 +47,14 @@ def image_upload():
     # longitude = 0.0
     # latitude = 0.0
     error_types_list = gen_result(
-        # "../model/best_yolo_seg0301.pt",
-        "/home/lcj/lab/else/sam_model/others/yolo-seg/src/seg2/runs/segment/train4/weights/best.pt",
-        "/home/lcj/lab/else/sam_model/yolov8x-seg.pt",
+        "../model/best_yolo_seg0304.pt",
+        # "/home/lcj/lab/else/sam_model/others/yolo-seg/src/seg2/runs/segment/train4/weights/best.pt",
+        "../model/yolov8x-seg.pt",
+        # "/home/lcj/lab/else/sam_model/yolov8x-seg.pt",
         filename_new,
         "data/",
-        "/home/lcj/lab/else/Multi-Label-With-ResNet/resnet_ML_model0304.pth"
-        # "../model/resnet_ML_model.pth",
+        "../model/resnet_ML_model0304.pth",
+        # "/home/lcj/lab/else/Multi-Label-With-ResNet/resnet_ML_model0304.pth"
     )
     # error_types_list = ["errors1", "errors2"]
     error_types = ",".join(error_types_list)
