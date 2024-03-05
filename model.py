@@ -8,7 +8,7 @@ class ResNetMultiLabelClassifier(nn.Module):
         super(ResNetMultiLabelClassifier, self).__init__()
         resnet = models.resnet18(pretrained=True)
         resnet.conv1 = nn.Conv2d(
-            6, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False
+            9, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False
         )  # 18,101
         self.features = nn.Sequential(*list(resnet.children())[:-1])
         self.fc = nn.Linear(resnet.fc.in_features, num_classes)
