@@ -1,7 +1,7 @@
 from flask import Flask, request, send_file
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from infer_api import gen_result
+from infer_api import gen_result,gen_result2
 from get_gisinfo import get_location_from_image
 import time
 
@@ -55,8 +55,17 @@ def image_upload():
         "/home/lcj/lab/else/Multi-Label-With-ResNet/resnet_ML_model0304.pth"
         # "../model/resnet_ML_model.pth",
     )
+    error_types_list+=gen_result2(
+        # "../model/best_yolo_seg0301.pt",
+        "/home/lcj/lab/else/Multi-Label-With-ResNet/best_podao.pt",
+        filename_new,
+        "data/",
+        "/home/lcj/lab/else/Multi-Label-With-ResNet/resnet_ML_model0311-18-podao.pth"
+        # "../model/resnet_ML_model.pth",
+    )
     # error_types_list = ["errors1", "errors2"]
     error_types = ",".join(error_types_list)
+    # print(error_types)
 
     # 将图片信息存入数据库
     new_file_info = FileInfo(
