@@ -53,7 +53,7 @@ def gen_txt(
                 else (4 if cls == 2 or cls == 5 or cls == 7 else 5 if cls == 10 else -1)
             )
             if cls != -1:
-                if masks !=None:
+                if masks != None:
                     data = masks[i].data[0]
                     agg_masks[cls] = torch.max(agg_masks[cls], data)
     with open(label_path, "w") as f:
@@ -81,7 +81,7 @@ def gen_txt(
                     + str(int(c6) * 255)
                     + "\n"
                 )
-                
+
 
 # 调用yolo生成图像txt
 def gen_txt2(
@@ -120,15 +120,10 @@ def gen_txt2(
                 r, g, b = img.getpixel((x, y))
                 c1 = agg_masks[:, y, x]
                 f.write(
-                    str(r)
-                    + " "
-                    + str(g)
-                    + " "
-                    + str(b)
-                    + " "
-                    + str(int(c1) )
-                    + "\n"
+                    str(r) + " " + str(g) + " " + str(b) + " " + str(int(c1)) + "\n"
                 )
+
+
 def gen_result(
     yolo_path,
     yolo_path2,
@@ -149,7 +144,7 @@ def gen_result(
         os.makedirs(new_image_path)
 
     original_image_path = original_image_path + image_name
-    label_path = image_path + "txt/" + image_name.split(".")[0]+ ".txt"
+    label_path = image_path + "txt/" + image_name.split(".")[0] + ".txt"
     image_path = image_path + image_name
     new_image_path = new_image_path + image_name
     gen_txt(
@@ -168,7 +163,7 @@ def gen_result(
     inputs = inputs.reshape((width, height, 9)).transpose((2, 0, 1))
     # Load the trained model
     model = ResNetMultiLabelClassifier(num_classes=num_classes)
-    model.load_state_dict(torch.load(resnet_path, map_location='cpu'))
+    model.load_state_dict(torch.load(resnet_path, map_location="cpu"))
     model.eval()
     # Specify the device
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -193,6 +188,7 @@ def gen_result(
             res.append(errors_new[i])
     return res
 
+
 def gen_result2(
     yolo_path,
     image_name,
@@ -211,7 +207,7 @@ def gen_result2(
         os.makedirs(new_image_path)
 
     original_image_path = original_image_path + image_name
-    label_path = image_path + "txt2/" + image_name.split(".")[0]+ ".txt"
+    label_path = image_path + "txt2/" + image_name.split(".")[0] + ".txt"
     image_path = image_path + image_name
     new_image_path = new_image_path + image_name
     gen_txt2(
@@ -229,7 +225,7 @@ def gen_result2(
     inputs = inputs.reshape((width, height, 4)).transpose((2, 0, 1))
     # Load the trained model
     model = ResNetMultiLabelClassifier2(num_classes=num_classes)
-    model.load_state_dict(torch.load(resnet_path, map_location='cpu'))
+    model.load_state_dict(torch.load(resnet_path, map_location="cpu"))
     model.eval()
     # Specify the device
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -239,15 +235,13 @@ def gen_result2(
     outputs = model(inputs)
     predictions = (outputs > 0.5).float()
     # print(predictions)
-    errors_new = [
-        "缘石坡道问题",
-        "缘石坡道高差过高"
-    ]
+    errors_new = ["缘石坡道问题", "缘石坡道高差过高"]
     res = []
     for i, item in enumerate(predictions[0]):
-        if item and i!=0:
+        if item and i != 0:
             res.append(errors_new[i])
     return res
+
 
 # yolo_path = "/home/lcj/lab/else/sam_model/others/yolo-seg/src/seg2/runs/segment/train3/weights/best.pt"
 # image_name = "0000402.jpg"

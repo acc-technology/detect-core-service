@@ -6,7 +6,7 @@ import torchvision.models as models
 class ResNetMultiLabelClassifier(nn.Module):
     def __init__(self, num_classes):
         super(ResNetMultiLabelClassifier, self).__init__()
-        resnet = models.resnet18(pretrained=True)
+        resnet = models.resnet50(pretrained=False)
         resnet.conv1 = nn.Conv2d(
             9, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False
         )  # 18,101
