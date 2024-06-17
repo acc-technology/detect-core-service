@@ -1,129 +1,133 @@
-from flask import Flask, request, send_file
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-from infer_api import gen_result, gen_result2
-from get_gisinfo import get_location_from_image
-import time
+from datetime import datetime
+from werkzeug.utils import secure_filename
+from PIL import Image as PILImage
+import os
+from config import Config
+from models import db, Image
+from utils import allowed_file, get_exif_data, get_lat_lon, process_image
+from yolo import apply_yolo_models
+from resnet import classify_with_resnet_models
 
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    "sqlite:////root/server/src/database.db"
-    # "sqlite:////home/lcj/lab/else/detect-core-service/database.db"
-)
-db = SQLAlchemy(app)
+app.config.from_object(Config)
+db.init_app(app)
+CORS(app)
 
 
-# 创建数据库表格
-class FileInfo(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    filename = db.Column(db.Text, nullable=False)
-    upload_time = db.Column(db.Integer, nullable=False)
-    longitude = db.Column(db.Float, nullable=True)
-    latitude = db.Column(db.Float, nullable=True)
-    error_types = db.Column(db.Text, nullable=False)
-
-    def __repr__(self):
-        return (
-            f"<FileInfo id={self.id}, filename={self.filename}, upload_time={self.upload_time}, "
-            f"longitude={self.longitude}, latitude={self.latitude}, error_types={self.error_types}>"
-        )
-
-
-# db.create_all()
-with app.app_context():
-    db.create_all()
-cors = CORS(app)
+# 辅助函数：生成统一的响应格式
+def make_response(code, msg, data=None):
+    return jsonify({"code": code, "msg": msg, "data": data}), 200
 
 
 @app.route("/image/upload", methods=["POST"])
-def image_upload():
-    image = request.files["image"]
-    timestamp = int(time.time())
-    filename_new = f"{timestamp}_{image.filename}"
-    image.save("data/" + filename_new)
-    # print(image)
-    longitude, latitude = get_location_from_image("data/" + filename_new)
-    # exit()
-    # longitude = 0.0
-    # latitude = 0.0
-    error_types_list = gen_result(
-        "../model/best_yolo_seg0304.pt",
-        # "/home/lcj/lab/else/sam_model/others/yolo-seg/src/seg2/runs/segment/train4/weights/best.pt",
-        "../model/yolov8x-seg.pt",
-        # "/home/lcj/lab/else/sam_model/yolov8x-seg.pt",
-        filename_new,
-        "data/",
-        "../model/resnet_ML_model0309-50.pth",
-        # "/home/lcj/lab/else/Multi-Label-With-ResNet/resnet_ML_model0304.pth",
-    )
-    error_types_list += gen_result2(
-        "../model/best_yolo_seg0311-podao.pt",
-        # "/home/lcj/lab/else/Multi-Label-With-ResNet/best_podao.pt",
-        filename_new,
-        "data/",
-        "../model/resnet_ML_model0311-18-podao.pth",
-        # "/home/lcj/lab/else/Multi-Label-With-ResNet/resnet_ML_model0311-18-podao.pth",
-    )
-    # error_types_list = ["errors1", "errors2"]
-    error_types = ",".join(error_types_list)
-    # print(error_types)
+def upload_file():
+    # 检查请求中是否有文件
+    if "image" not in request.files:
+        return make_response(400, "No file part")
 
-    # 将图片信息存入数据库
-    new_file_info = FileInfo(
-        filename=filename_new,
-        upload_time=timestamp,
-        longitude=longitude,
-        latitude=latitude,
-        error_types=error_types,
-    )
-    db.session.add(new_file_info)
-    db.session.commit()
+    file = request.files["image"]
 
-    return {"code": 200, "data": new_file_info.id}
+    # 如果用户没有选择文件，浏览器提交一个空的文件名
+    if file.filename == "":
+        return make_response(400, "No selected file")
+
+    # 检查文件是否符合允许的扩展名
+    if file and allowed_file(file.filename, app.config["ALLOWED_EXTENSIONS"]):
+        # 添加时间戳到文件名
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        filename = secure_filename(file.filename)
+        filename = (
+            f"{filename.rsplit('.', 1)[0]}_{timestamp}.{filename.rsplit('.', 1)[1]}"
+        )
+        file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        file.save(file_path)
+
+        # 读取EXIF数据以获取经纬度信息
+        image = PILImage.open(file_path)
+        exif_data = get_exif_data(image)
+        latitude, longitude = get_lat_lon(exif_data)
+
+        # 处理图像：转换为RGB、调整大小、旋转（如果需要）
+        image = process_image(image)
+        image.save(file_path)
+
+        # 使用YOLOv8模型进行图像分割
+        multi_channel_image = apply_yolo_models(image, filename)
+
+        # 使用ResNet模型进行分类
+        classifications = classify_with_resnet_models(multi_channel_image)
+
+        # 创建新的Image对象并存储到数据库
+        new_image = Image(
+            filename=filename,
+            latitude=latitude,
+            longitude=longitude,
+            classifications=classifications,  # 将分类结果存储为字符串
+        )
+        db.session.add(new_image)
+        db.session.commit()
+
+        data = {
+            "id": new_image.id,  # 返回新创建的图片ID
+            "filename": filename,
+            "upload_time": int(new_image.upload_time.timestamp()),
+            "latitude": latitude,
+            "longitude": longitude,
+            "classifications": classifications,
+        }
+        return make_response(200, "File uploaded successfully", data)
+    else:
+        return make_response(400, "File type not allowed")
 
 
+# 获取图片列表接口
 @app.route("/image/list", methods=["GET"])
-def list_images():
-    images = FileInfo.query.order_by(FileInfo.id.desc()).all()
-    image_list = []
-    for image in images:
-        image_info = {
+def get_images():
+    images = Image.query.order_by(Image.id.desc()).all()
+    image_list = [
+        {
             "id": image.id,
             "filename": image.filename,
-            "upload_time": image.upload_time,
-            "longitude": image.longitude,
+            "upload_time": int(image.upload_time.timestamp()),
             "latitude": image.latitude,
-            "error_types": image.error_types.split(","),  # 将错误类型分割成列表
+            "longitude": image.longitude,
+            "classifications": image.classifications,
         }
-        image_list.append(image_info)
-    return {"code": 200, "data": image_list}
+        for image in images
+    ]
+    return make_response(200, "Images retrieved successfully", image_list)
 
 
+# 获取单张图片信息接口
 @app.route("/image/get", methods=["GET"])
-def get_image():
+def get_image_info():
     image_id = request.args.get("id")
-    image = FileInfo.query.filter_by(id=image_id).first()
+    image = Image.query.get(image_id)
     if image:
         image_info = {
             "id": image.id,
             "filename": image.filename,
-            "upload_time": image.upload_time,
-            "longitude": image.longitude,
+            "upload_time": int(image.upload_time.timestamp()),
             "latitude": image.latitude,
-            "error_types": image.error_types.split(","),  # 将错误类型分割成列表
+            "longitude": image.longitude,
+            "classifications": image.classifications,
         }
-        return {"code": 200, "data": image_info}
+        return make_response(200, "Image info retrieved successfully", image_info)
     else:
-        return {
-            "code": 404,
-            "msg": "Image not found",
-        }
+        return make_response(404, "Image not found")
 
 
+# 获取图像文件接口
 @app.route("/image/fetch/<filename>", methods=["GET"])
-def fetch_image(filename):
-    prefix = (
-        "data/image_new/" if request.args.get("type") == "new" else "data/image_trans/"
-    )
-    image_path = prefix + filename
-    return send_file(image_path)
+def get_image(filename):
+    type = request.args.get("type")
+    directory = os.path.join("segments", type) if type else app.config["UPLOAD_FOLDER"]
+    return send_from_directory(directory, filename)
+
+
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
